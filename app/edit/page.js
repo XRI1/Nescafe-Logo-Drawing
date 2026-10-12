@@ -367,23 +367,20 @@ export default function EditPage() {
 
   const send = async () => {
     setSending(true);
-    const image = await createSavedDesign();
     try {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("nescafe-design", image);
-      }
-      await fetch("/api/designs", {
+      const image = await createSavedDesign();
+      const blob = await fetch(image).then((response) => response.blob());
+      const formData = new FormData();
+      formData.append("image", blob, `nescafe-${Date.now()}.png`);
+      const response = await fetch("/api/designs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image })
+        body: formData
       });
-      await new Promise((r) => setTimeout(r, 600));
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to send your design");
       router.push("/nescafe");
-    } catch {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("nescafe-design", image);
-      }
-      router.push("/nescafe");
+    } catch (error) {
+      window.alert(error.message || "Unable to send your design. Please try again.");
     } finally {
       setSending(false);
     }

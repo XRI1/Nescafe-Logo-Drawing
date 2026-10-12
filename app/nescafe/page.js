@@ -1,91 +1,122 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const SLOT_COUNT = 10;
+const FLIGHT_SECONDS = 22;
+
+function preloadDesign(design) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(design);
+    image.onerror = () => resolve(null);
+    image.src = design.imageUrl;
+  });
+}
 
 export default function NescafePage() {
-  const router = useRouter();
-  const reduce = useReducedMotion();
-  const [image, setImage] = useState(null);
+  const [slots, setSlots] = useState([]);
+  const [viewport, setViewport] = useState({ width: 1920, height: 1080 });
+  const queueRef = useRef([]);
+  const seenRef = useRef(new Set());
+  const initializedRef = useRef(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("nescafe-design");
-      if (saved) {
-        setImage(saved);
-        return;
-      }
+  const acceptDesign = useCallback(async (design) => {
+    if (!design?.id || !design?.imageUrl || seenRef.current.has(design.id)) return;
+    seenRef.current.add(design.id);
+    const ready = await preloadDesign(design);
+    if (!ready) {
+      seenRef.current.delete(design.id);
+      return;
     }
-
-    fetch("/api/designs")
-      .then((res) => res.json())
-      .then((data) => setImage(data.designs?.at(-1)?.image || null))
-      .catch(() => setImage(null));
+    setSlots((current) => {
+      if (current.length < SLOT_COUNT) {
+        return [...current, { slotId: crypto.randomUUID(), design: ready, delay: 0, revision: 0 }];
+      }
+      queueRef.current.push(ready);
+      return current;
+    });
   }, []);
 
+  const reconcile = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/designs?limit=${SLOT_COUNT}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const { designs = [] } = await response.json();
+      if (!initializedRef.current) {
+        const ready = (await Promise.all(designs.map(preloadDesign))).filter(Boolean);
+        ready.forEach((design) => seenRef.current.add(design.id));
+        setSlots(ready.map((design, index) => ({
+          slotId: crypto.randomUUID(),
+          design,
+          delay: -(index * FLIGHT_SECONDS) / Math.max(ready.length, 1),
+          revision: 0
+        })));
+        initializedRef.current = true;
+        return;
+      }
+      for (const design of designs) await acceptDesign(design);
+    } catch {
+      // EventSource reconnects automatically; its next connection reconciles again.
+    }
+  }, [acceptDesign]);
+
+  useEffect(() => {
+    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    reconcile();
+    const source = new EventSource("/api/designs/stream");
+    source.addEventListener("connected", reconcile);
+    source.addEventListener("design.created", (event) => {
+      try { acceptDesign(JSON.parse(event.data)); } catch {}
+    });
+    source.onerror = () => reconcile();
+    return () => source.close();
+  }, [acceptDesign, reconcile]);
+
+  const flightPath = `path("M -250 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * -0.08)} ${viewport.width + 250} ${Math.round(viewport.height * 0.52)}")`;
+
+  const replaceAtBoundary = (slotId) => {
+    if (!queueRef.current.length) return;
+    setSlots((current) => {
+      const oldest = [...current].sort((a, b) => new Date(a.design.createdAt) - new Date(b.design.createdAt))[0];
+      if (!oldest || oldest.slotId !== slotId || !queueRef.current.length) return current;
+      const next = queueRef.current.shift();
+      return current.map((slot) => slot.slotId === slotId
+        ? { ...slot, design: next, delay: 0, revision: slot.revision + 1 }
+        : slot);
+    });
+  };
+
   return (
-    <motion.main
-      className="screen nescafe-world-screen"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.8 }}
-    >
-      <motion.img
-        className="landing-earth"
-        src="/assets/earth.jpg"
-        alt="Earth glowing beneath the stars"
-        initial={{ scale: 1.04 }}
-        animate={{ scale: 1 }}
-        transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
-      />
-
-      <button
-        className="world-icon-back"
-        onClick={() => router.push("/edit")}
-        aria-label="Back to editor"
-      >
-        <ArrowLeft />
-      </button>
-
-      {/* Centered NESCAFÉ Logo under the world horizon */}
-      <motion.div
-        className="world-center-wrap"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.8 }}
-      >
-        <img
-          className="world-logo"
-          src="/assets/nescafe-logo.png"
-          alt="NESCAFÉ — Make your world"
-        />
-      </motion.div>
-
-      {/* User's Design Orbiting in Space */}
-      {image && (
-        <motion.div
-          className="saved-design-flyer"
-          initial={{ opacity: 0, scale: 0.25, x: 40, y: 60, rotate: -20 }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-            x: reduce ? 0 : [0, 16, 0],
-            y: reduce ? 0 : [0, -16, 0],
-            rotate: reduce ? -8 : [-12, -4, -12]
-          }}
-          transition={{
-            opacity: { delay: 0.8, duration: 0.7 },
-            scale: { delay: 0.8, type: "spring", stiffness: 90, damping: 14 },
-            x: { repeat: Infinity, duration: 6, ease: "easeInOut" },
-            y: { repeat: Infinity, duration: 5, ease: "easeInOut" },
-            rotate: { repeat: Infinity, duration: 7, ease: "easeInOut" }
-          }}
-        >
-          <img src={image} alt="Your flying design" />
-        </motion.div>
-      )}
+    <motion.main className="screen nescafe-world-screen live-world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
+      <img className="landing-earth" src="/assets/earth.jpg" alt="Earth glowing beneath the stars" />
+      <div className="world-center-wrap" aria-hidden="true">
+        <img className="world-logo" src="/assets/nescafe-logo.png" alt="" />
+      </div>
+      <div className="flight-layer" aria-label="Live NESCAFÉ designs">
+        {slots.map((slot, index) => (
+          <img
+            key={`${slot.slotId}-${slot.revision}`}
+            className="flight-design"
+            src={slot.design.imageUrl}
+            alt="Community-designed NESCAFÉ leaf"
+            style={{
+              animationDelay: `${slot.delay}s`,
+              offsetPath: flightPath,
+              "--flight-scale": 0.82 + (index % 4) * 0.08,
+              "--flight-wobble": `${-7 + (index % 5) * 3}deg`
+            }}
+            onAnimationIteration={() => replaceAtBoundary(slot.slotId)}
+          />
+        ))}
+      </div>
     </motion.main>
   );
 }

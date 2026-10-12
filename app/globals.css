@@ -58,10 +58,28 @@
 .placed-stickers{position:absolute;inset:0;z-index:3;pointer-events:none;-webkit-mask-image:url('/assets/nescafe-leaf.png');mask-image:url('/assets/nescafe-leaf.png');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-position:center;mask-position:center;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}.placed-sticker{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:grab;touch-action:none;user-select:none}.placed-sticker:active{cursor:grabbing}.placed-sticker img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none}.stickers button[draggable="true"]{cursor:grab}.stickers button[draggable="true"]:active{cursor:grabbing}
 .nescafe-world-screen{background:#010711;height:100svh;max-height:100svh;overflow:hidden;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .world-center-wrap{position:relative;z-index:3;display:flex;flex-direction:column;align-items:center;margin-bottom:clamp(20px,5vh,52px);pointer-events:none;width:100%}
-.world-center-wrap .world-logo{width:clamp(280px,37vw,550px);max-height:54vh;object-fit:contain;height:auto;filter:drop-shadow(0 16px 28px rgba(0,0,0,.5));display:block;margin:0 auto}
+.world-center-wrap .world-logo{width:clamp(440px,calc(37vw + 160px),710px);max-height:68vh;object-fit:contain;height:auto;filter:drop-shadow(0 16px 28px rgba(0,0,0,.5));display:block;margin:0 auto;transform:translateY(50px)}
 .world-icon-back{position:absolute;z-index:8;left:28px;top:28px;width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.32);border-radius:50%;background:rgba(0,0,0,.25);color:#fff;cursor:pointer;backdrop-filter:blur(8px);transition:background .2s ease,transform .2s ease}
 .world-icon-back:hover{background:rgba(255,255,255,.2);transform:scale(1.06)}
 .world-icon-back svg{font-size:21px}
 .saved-design-flyer{position:absolute;z-index:5;right:14%;top:14%;width:clamp(110px,13vw,190px);height:auto;filter:drop-shadow(0 16px 20px rgba(0,0,0,.45));pointer-events:none}
 .saved-design-flyer img{width:100%;height:auto;display:block;object-fit:contain}
-@media(max-width:600px){.world-center-wrap{margin-bottom:18px}.world-center-wrap .world-logo{width:min(86vw,380px);max-height:50vh}.world-icon-back{left:16px;top:16px;width:40px;height:40px}.saved-design-flyer{right:6%;top:16%;width:110px}}
+@media(max-width:600px){.world-center-wrap{margin-bottom:18px}.world-center-wrap .world-logo{width:min(96vw,540px);max-height:63vh;transform:translateY(30px)}.world-icon-back{left:16px;top:16px;width:40px;height:40px}.saved-design-flyer{right:6%;top:16%;width:110px}}
+
+/* Fullscreen live venue display */
+.live-world{isolation:isolate;contain:layout paint;background:#010711}
+.live-world .landing-earth{z-index:0;user-select:none;pointer-events:none}
+.live-world .world-center-wrap{z-index:2}
+.live-world .flight-layer{position:absolute;inset:0;z-index:4;overflow:hidden;pointer-events:none}
+.flight-design{position:absolute;left:0;top:0;width:clamp(276px,calc(9vw + 200px),376px);height:auto;object-fit:contain;opacity:0;offset-distance:0%;offset-anchor:center;offset-rotate:0deg;filter:drop-shadow(0 12px 16px rgba(0,0,0,.5));will-change:offset-distance,transform,opacity;animation:nescafe-flight 22s linear infinite}
+@keyframes nescafe-flight{
+  0%{opacity:0;offset-distance:0%;transform:scale(calc(var(--flight-scale)*.72)) rotate(calc(var(--flight-wobble) - 5deg))}
+  5%{opacity:1}
+  25%{transform:scale(calc(var(--flight-scale)*.9)) rotate(var(--flight-wobble))}
+  50%{transform:scale(var(--flight-scale)) rotate(calc(var(--flight-wobble) + 5deg))}
+  75%{transform:scale(calc(var(--flight-scale)*.9)) rotate(var(--flight-wobble))}
+  95%{opacity:1}
+  100%{opacity:0;offset-distance:100%;transform:scale(calc(var(--flight-scale)*.72)) rotate(calc(var(--flight-wobble) - 5deg))}
+}
+@media(max-aspect-ratio:3/4){.flight-design{width:clamp(268px,calc(18vw + 200px),350px)}}
+@media(prefers-reduced-motion:reduce){.flight-design{animation-duration:22s!important;animation-iteration-count:infinite!important}}
