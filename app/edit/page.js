@@ -107,6 +107,7 @@ export default function EditPage() {
   const canvasRef = useRef(null);
   const canvasShellRef = useRef(null);
   const leafRef = useRef(null);
+  const outlineRef = useRef(null);
   const history = useRef([]);
   const [color, setColor] = useState(INK_COLORS[0]);
   const [leafColor, setLeafColor] = useState("#ffffff");
@@ -360,6 +361,7 @@ export default function EditPage() {
     });
     outputCtx.globalCompositeOperation = "destination-in";
     outputCtx.drawImage(mask, LEAF_X, 0, LEAF_SIZE, LEAF_SIZE);
+    outputCtx.globalCompositeOperation = "source-over";
     return output.toDataURL("image/png");
   };
 
@@ -452,6 +454,7 @@ export default function EditPage() {
                 </div>
               ))}
             </div>
+            <img ref={outlineRef} className="leaf-dotted-outline" src="/assets/leaf-outline.svg" alt="" aria-hidden="true" />
             <span className="canvas-hint">YOUR WORLD STARTS HERE</span>
           </div>
         </div>
