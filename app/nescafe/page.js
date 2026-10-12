@@ -36,9 +36,9 @@ function preloadDesign(design) {
 }
 
 function calculatePathLength(width, height) {
-  const p0 = { x: -250, y: height * 0.52 };
+  const p0 = { x: -180, y: height * 0.52 };
   const p1 = { x: width * 0.5, y: height * 0.04 };
-  const p2 = { x: width + 250, y: height * 0.52 };
+  const p2 = { x: width + 180, y: height * 0.52 };
   let length = 0;
   let prev = p0;
   const steps = 30;
@@ -57,13 +57,24 @@ function calculatePathLength(width, height) {
 
 function getSafeSlotCount(width, height) {
   const pathLength = calculatePathLength(width, height);
-  // Leaf visual width in CSS is clamp(276px, 9vw + 200px, 376px) scaled by up to ~1.08
-  const leafWidth = Math.min(376, Math.max(276, 0.09 * width + 200));
-  const effectiveWidth = leafWidth * 1.08;
-  // Safety gap ensures leaves never touch or overlap along the curve
-  const safeGap = Math.max(75, width * 0.05);
-  const minCenterDistance = effectiveWidth + safeGap;
-  return Math.max(2, Math.floor(pathLength / minCenterDistance));
+  // Leaf visual width in CSS is clamp(230px, 6vw + 160px, 295px)
+  const leafWidth = Math.min(295, Math.max(230, 0.06 * width + 160));
+  const effectiveWidth = leafWidth * 1.05;
+  const minCenterDistance = effectiveWidth + 24;
+  const computed = Math.floor(pathLength / minCenterDistance);
+
+  // Provides 6 slots on desktop/laptop (>= 960px) to reduce distance by ~100px
+  // while ensuring non-overlapping, continuous flight
+  if (width >= 2200) {
+    return Math.max(7, computed);
+  }
+  if (width >= 960) {
+    return Math.max(6, computed);
+  }
+  if (width >= 640) {
+    return Math.max(5, computed);
+  }
+  return Math.max(3, computed);
 }
 
 export default function NescafePage() {
@@ -191,7 +202,7 @@ export default function NescafePage() {
     return () => source.close();
   }, [acceptDesign, reconcile]);
 
-  const flightPath = `path("M -250 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * 0.04)} ${viewport.width + 250} ${Math.round(viewport.height * 0.52)}")`;
+  const flightPath = `path("M -180 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * 0.04)} ${viewport.width + 180} ${Math.round(viewport.height * 0.52)}")`;
 
   return (
     <motion.main className="screen nescafe-world-screen live-world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
