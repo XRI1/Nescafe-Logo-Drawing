@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowCounterClockwise, ArrowLeft, ArrowRight, Check, Eraser, PaintBucket, Palette, PaperPlaneTilt, PencilSimple, Trash } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowLeft, ArrowRight, Check, Eraser, PaintBucket, PaintBrush, PaperPlaneTilt, PencilSimple, Trash } from "@phosphor-icons/react";
+import { IoIosColorPalette } from "react-icons/io";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const W = 760;
@@ -14,7 +15,8 @@ const STICKERS = [
   { src: "/assets/sticker-dance.png", label: "Dance" },
   { src: "/assets/sticker-snack.png", label: "Snack" }
 ];
-const COLORS = ["#ff2947", "#ffb83e", "#52d19b", "#72b7ff", "#7047eb", "#ff78ad", "#ffffff"];
+const INK_COLORS = ["#ed1c2e", "#ff8c00", "#ffca28", "#52d19b", "#00bcd4", "#72b7ff", "#7047eb", "#ff78ad", "#ffffff", "#140508"];
+const LEAF_COLORS = ["#ffffff", "#f5ebdf", "#a21f25", "#241215", "#1e3a5f"];
 
 function Brand({ compact = false }) {
   return <img className={compact ? "brand brand--compact" : "brand"} src="/assets/nescafe-logo.png" alt="NESCAFÉ — Make your world" />;
@@ -57,7 +59,7 @@ function Editor({ onSend, onBack }) {
   const canvasRef = useRef(null);
   const leafRef = useRef(null);
   const history = useRef([]);
-  const [color,setColor]=useState(COLORS[0]);
+  const [color,setColor]=useState(INK_COLORS[0]);
   const [leafColor,setLeafColor]=useState("#ffffff");
   const [tool,setTool]=useState("pen");
   const [size,setSize]=useState(18);
@@ -95,16 +97,61 @@ function Editor({ onSend, onBack }) {
             <DrawingCanvas canvasRef={canvasRef} color={color} tool={tool} size={size} onHistory={snapshot}/>
             <span className="canvas-hint">YOUR WORLD STARTS HERE</span>
           </div>
-          <div className="controls">
-            <div className="palette"><Palette className="control-icon" weight="duotone" aria-label="Pen colors"/><label className="color-picker" title="Choose any pen color"><input type="color" value={color} onChange={e=>{setColor(e.target.value);setTool("pen")}}/><span style={{background:color}}/></label>{COLORS.map(c=><button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"selected":""} style={{background:c}} aria-label={`Use ${c}`}/>)}</div>
-            <div className="right-controls">
-              <label className="leaf-picker"><PaintBucket className="control-icon" weight="duotone" aria-label="Leaf color"/><input type="color" value={leafColor} onChange={e=>setLeafColor(e.target.value)}/><span style={{background:leafColor}}/></label>
-              <label className="stroke"><small>STROKE</small><input type="range" min="5" max="42" value={size} onChange={e=>setSize(+e.target.value)}/><b style={{width:size/1.8,height:size/1.8}}/></label>
-            </div>
-          </div>
         </div>
         <aside className="stickers"><span>DROP A DOODLE</span><div>{STICKERS.map(s=><motion.button whileHover={{scale:1.06,rotate:-2}} whileTap={{scale:.92}} key={s.src} onClick={()=>addSticker(s)}><img src={s.src} alt={s.label}/><b>+</b></motion.button>)}</div></aside>
       </section>
+
+      {/* Bottom Controls Bar with Both Color Sections */}
+      <div className="editor-controls-bar">
+        {/* Left Section: Pen Ink Color Palette */}
+        <div className="control-dock ink-dock">
+          <div className="dock-badge">
+            <IoIosColorPalette size={21} className="dock-icon" />
+            <span>INK</span>
+          </div>
+          <label className="color-picker-btn" title="Choose custom ink color">
+            <input type="color" value={color} onChange={e=>{setColor(e.target.value);setTool("pen");}} />
+            <span className="picker-swatch" style={{background:color}} />
+          </label>
+          <div className="swatch-group">
+            {INK_COLORS.map(c=>(
+              <button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"swatch selected":"swatch"} style={{background:c}} aria-label={`Use ink color ${c}`} />
+            ))}
+          </div>
+        </div>
+
+        {/* Right Section: Leaf Background Color & Stroke */}
+        <div className="control-dock leaf-stroke-dock">
+          <div className="leaf-section">
+            <div className="dock-badge">
+              <PaintBucket size={19} weight="fill" className="dock-icon" />
+              <span>LEAF</span>
+            </div>
+            <label className="color-picker-btn" title="Choose custom leaf background color">
+              <input type="color" value={leafColor} onChange={e=>setLeafColor(e.target.value)} />
+              <span className="picker-swatch" style={{background:leafColor}} />
+            </label>
+            <div className="swatch-group">
+              {LEAF_COLORS.map(c=>(
+                <button key={c} onClick={()=>setLeafColor(c)} className={leafColor===c?"swatch selected":"swatch"} style={{background:c}} aria-label={`Use leaf color ${c}`} />
+              ))}
+            </div>
+          </div>
+
+          <div className="dock-divider" />
+
+          <div className="stroke-section">
+            <div className="dock-badge" title="Stroke size">
+              <PaintBrush size={18} weight="fill" className="dock-icon" />
+            </div>
+            <label className="stroke-slider" title="Adjust stroke size">
+              <input type="range" min="4" max="42" value={size} onChange={e=>setSize(+e.target.value)} />
+              <b style={{width:Math.max(5,size/1.7),height:Math.max(5,size/1.7)}} />
+            </label>
+          </div>
+        </div>
+      </div>
+
       <button className="send-btn" onClick={send} disabled={sending}><span>{sending?"LAUNCHING...":"SEND TO THE WORLD"}</span><PaperPlaneTilt weight="fill"/></button>
     </motion.main>
   );
