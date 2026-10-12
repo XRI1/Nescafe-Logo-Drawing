@@ -1,4 +1,5 @@
 import "./globals.css";
+import FullscreenButton from "@/components/FullscreenButton";
 
 export const metadata = {
   title: "NESCAFÉ — Make Your World",
@@ -13,7 +14,10 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body>
+        <FullscreenButton />
+        {children}
+      </body>
     </html>
   );
 }
