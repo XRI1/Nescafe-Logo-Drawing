@@ -118,6 +118,7 @@ export default function EditPage() {
   const [sending, setSending] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [sentMessage, setSentMessage] = useState(false);
+  const successTimerRef = useRef(null);
   const [placedStickers, setPlacedStickers] = useState([]);
   const [selectedStickerId, setSelectedStickerId] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
@@ -165,6 +166,12 @@ export default function EditPage() {
   useEffect(() => {
     snapshot();
   }, [snapshot]);
+
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   const restore = (url) => {
     const img = new Image();
@@ -386,6 +393,15 @@ export default function EditPage() {
     }
   };
 
+  const handleDismissSuccess = () => {
+    if (successTimerRef.current) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+    setSentMessage(false);
+    setSending(false);
+  };
+
   const handleOpenConfirm = () => {
     if (sending || sentMessage) return;
     setShowConfirm(true);
@@ -409,10 +425,10 @@ export default function EditPage() {
       // Clear canvas and reset editor state without refreshing the page
       resetEditor();
       setSentMessage(true);
-      setTimeout(() => {
-        setSentMessage(false);
-        setSending(false);
-      }, 2200);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => {
+        handleDismissSuccess();
+      }, 5000);
     } catch (error) {
       window.alert(error.message || "Unable to send your design. Please try again.");
       setSending(false);
@@ -734,6 +750,7 @@ export default function EditPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
+            onClick={handleDismissSuccess}
           >
             <motion.div
               className="nescafe-modal"
@@ -741,11 +758,33 @@ export default function EditPage() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.92, opacity: 0 }}
               transition={{ type: "spring", stiffness: 350, damping: 24 }}
+              onClick={(e) => e.stopPropagation()}
             >
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={handleDismissSuccess}
+                aria-label="Close dialog"
+              >
+                <X size={15} />
+              </button>
+
               <h3 className="modal-title-pacifico">Flown to the World!</h3>
               <p className="modal-subtitle">
                 Your design is now orbiting high above the Earth. Canvas is cleared and ready for your next creation!
               </p>
+
+              <div className="nescafe-modal-actions" style={{ justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="modal-btn-confirm"
+                  onClick={handleDismissSuccess}
+                  style={{ minWidth: "150px", flex: "initial" }}
+                >
+                  <span>OK</span>
+                  <CheckCircle weight="bold" size={17} />
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
