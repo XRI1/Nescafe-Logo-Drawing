@@ -3,9 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowCounterClockwise,
-  ArrowClockwise,
   ArrowLeft,
-  ArrowsOutSimple,
+  ArrowClockwise,
   Eraser,
   PaintBucket,
   PaintBrush,
@@ -102,6 +101,7 @@ export default function EditPage() {
   const [dragPreview, setDragPreview] = useState(null);
   const trayDragRef = useRef(null);
   const stickerGestureRef = useRef({ id: null, pointers: new Map(), lastX: 0, lastY: 0, startDistance: 0, startWidth: 0 });
+  const transformHandleRef = useRef(null);
 
   const inkInputRef = useRef(null);
   const leafInputRef = useRef(null);
@@ -256,6 +256,45 @@ export default function EditPage() {
     }
   };
 
+  const stickerCenterOnScreen = (item) => {
+    const rect = canvasShellRef.current.getBoundingClientRect();
+    return { x: rect.left + (item.x / W) * rect.width, y: rect.top + (item.y / H) * rect.height };
+  };
+
+  const startResizeHandle = (item, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const center = stickerCenterOnScreen(item);
+    transformHandleRef.current = { type: "resize", id: item.id, center, startWidth: item.w, startDistance: Math.max(1, Math.hypot(event.clientX - center.x, event.clientY - center.y)) };
+  };
+
+  const startRotateHandle = (item, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const center = stickerCenterOnScreen(item);
+    transformHandleRef.current = { type: "rotate", id: item.id, center, startRotation: item.rotation, startAngle: Math.atan2(event.clientY - center.y, event.clientX - center.x) };
+  };
+
+  const moveTransformHandle = (event) => {
+    const active = transformHandleRef.current;
+    if (!active) return;
+    if (active.type === "resize") {
+      const distance = Math.hypot(event.clientX - active.center.x, event.clientY - active.center.y);
+      const width = Math.max(55, Math.min(230, active.startWidth * (distance / active.startDistance)));
+      setPlacedStickers((items) => items.map((item) => item.id === active.id ? { ...item, w: width, h: width * 1.23 } : item));
+    } else {
+      const angle = Math.atan2(event.clientY - active.center.y, event.clientX - active.center.x);
+      const rotation = active.startRotation + ((angle - active.startAngle) * 180) / Math.PI;
+      setPlacedStickers((items) => items.map((item) => item.id === active.id ? { ...item, rotation } : item));
+    }
+  };
+
+  const endTransformHandle = () => {
+    transformHandleRef.current = null;
+  };
+
   const loadStickerImage = (src) => new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -385,6 +424,13 @@ export default function EditPage() {
                   style={{ left: `${(sticker.x / W) * 100}%`, top: `${(sticker.y / H) * 100}%`, width: `${(sticker.w / W) * 100}%`, height: `${(sticker.h / H) * 100}%`, transform: `translate(-50%,-50%) rotate(${sticker.rotation}deg)` }}
                 >
                   <img src={sticker.src} alt={sticker.label} />
+                  {selectedStickerId === sticker.id && (
+                    <>
+                      {['nw','ne','sw','se'].map((corner) => <button key={corner} className={`transform-handle resize-handle ${corner}`} onPointerDown={(event)=>startResizeHandle(sticker,event)} onPointerMove={moveTransformHandle} onPointerUp={endTransformHandle} onPointerCancel={endTransformHandle} aria-label="Resize doodle" />)}
+                      <span className="rotate-stem" />
+                      <button className="transform-handle rotate-handle" onPointerDown={(event)=>startRotateHandle(sticker,event)} onPointerMove={moveTransformHandle} onPointerUp={endTransformHandle} onPointerCancel={endTransformHandle} aria-label="Rotate doodle"><ArrowClockwise weight="bold" /></button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -415,14 +461,6 @@ export default function EditPage() {
       {dragPreview && (
         <div className="sticker-drag-preview" style={{ left: dragPreview.x, top: dragPreview.y }}>
           <img src={dragPreview.sticker.src} alt="" />
-        </div>
-      )}
-
-      {selectedSticker && (
-        <div className="sticker-resize-control">
-          <label title="Resize selected doodle"><ArrowsOutSimple weight="bold" /><input aria-label="Resize selected doodle" type="range" min="55" max="230" value={Math.round(selectedSticker.w)} onChange={(event) => {const width=Number(event.target.value);setPlacedStickers((items)=>items.map((item)=>item.id===selectedSticker.id?{...item,w:width,h:width*1.23}:item));}}/></label>
-          <span className="sticker-control-divider" />
-          <label title="Rotate selected doodle"><ArrowClockwise weight="bold" /><input aria-label="Rotate selected doodle" type="range" min="-180" max="180" value={Math.round(selectedSticker.rotation)} onChange={(event)=>{const rotation=Number(event.target.value);setPlacedStickers((items)=>items.map((item)=>item.id===selectedSticker.id?{...item,rotation}:item));}}/></label>
         </div>
       )}
 
