@@ -1,13 +1,15 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowCounterClockwise,
   ArrowLeft,
+  ArrowsOutSimple,
   Eraser,
   PaintBucket,
   PaintBrush,
   PaperPlaneTilt,
+  PenNib,
   PencilSimple,
   Trash
 } from "@phosphor-icons/react";
@@ -86,6 +88,7 @@ function DrawingCanvas({ canvasRef, color, tool, size, onHistory }) {
 export default function EditPage() {
   const router = useRouter();
   const canvasRef = useRef(null);
+  const canvasShellRef = useRef(null);
   const leafRef = useRef(null);
   const history = useRef([]);
   const [color, setColor] = useState(INK_COLORS[0]);
@@ -93,6 +96,42 @@ export default function EditPage() {
   const [tool, setTool] = useState("pen");
   const [size, setSize] = useState(18);
   const [sending, setSending] = useState(false);
+  const [placedStickers, setPlacedStickers] = useState([]);
+  const [selectedStickerId, setSelectedStickerId] = useState(null);
+  const [dragPreview, setDragPreview] = useState(null);
+  const trayDragRef = useRef(null);
+  const stickerGestureRef = useRef({ id: null, pointers: new Map(), lastX: 0, lastY: 0, startDistance: 0, startWidth: 0 });
+
+  const inkInputRef = useRef(null);
+  const leafInputRef = useRef(null);
+
+  const openInkPicker = () => {
+    if (inkInputRef.current) {
+      if (typeof inkInputRef.current.showPicker === "function") {
+        try {
+          inkInputRef.current.showPicker();
+        } catch {
+          inkInputRef.current.click();
+        }
+      } else {
+        inkInputRef.current.click();
+      }
+    }
+  };
+
+  const openLeafPicker = () => {
+    if (leafInputRef.current) {
+      if (typeof leafInputRef.current.showPicker === "function") {
+        try {
+          leafInputRef.current.showPicker();
+        } catch {
+          leafInputRef.current.click();
+        }
+      } else {
+        leafInputRef.current.click();
+      }
+    }
+  };
 
   const snapshot = useCallback(() => {
     const c = canvasRef.current;
@@ -122,34 +161,119 @@ export default function EditPage() {
 
   const clear = () => {
     canvasRef.current.getContext("2d").clearRect(0, 0, W, H);
+    setPlacedStickers([]);
+    setSelectedStickerId(null);
     snapshot();
   };
 
-  const addSticker = (sticker) => {
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvasRef.current.getContext("2d");
-      const off = document.createElement("canvas");
-      off.width = img.width;
-      off.height = img.height;
-      const ox = off.getContext("2d", { willReadFrequently: true });
-      ox.drawImage(img, 0, 0);
-      const data = ox.getImageData(0, 0, off.width, off.height);
-      for (let i = 0; i < data.data.length; i += 4) {
-        if (data.data[i] > 245 && data.data[i + 1] > 245 && data.data[i + 2] > 245) {
-          data.data[i + 3] = 0;
-        }
-      }
-      ox.putImageData(data, 0, 0);
-      const ratio = img.width / img.height;
-      const h = 150;
-      ctx.drawImage(off, 355 - (h * ratio) / 2, 205, h * ratio, h);
-      snapshot();
-    };
-    img.src = sticker.src;
+  const addSticker = (sticker, x, y) => {
+    setPlacedStickers((items) => [...items, {
+      id: crypto.randomUUID(), src: sticker.src, label: sticker.label,
+      x, y, w: 112, h: 138
+    }]);
   };
 
-  const createSavedDesign = () => {
+  const dropSticker = (sticker, point) => {
+    const shell = canvasShellRef.current;
+    if (!shell) return;
+    const rect = shell.getBoundingClientRect();
+    if (point.x < rect.left || point.x > rect.right || point.y < rect.top || point.y > rect.bottom) return;
+    addSticker(sticker, ((point.x - rect.left) * W) / rect.width, ((point.y - rect.top) * H) / rect.height);
+  };
+
+  const startTrayDrag = (sticker, event) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    trayDragRef.current = sticker;
+    setDragPreview({ sticker, x: event.clientX, y: event.clientY });
+  };
+
+  const moveTrayDrag = (event) => {
+    if (!trayDragRef.current) return;
+    setDragPreview({ sticker: trayDragRef.current, x: event.clientX, y: event.clientY });
+  };
+
+  const endTrayDrag = (event) => {
+    if (!trayDragRef.current) return;
+    dropSticker(trayDragRef.current, { x: event.clientX, y: event.clientY });
+    trayDragRef.current = null;
+    setDragPreview(null);
+  };
+
+  const startPlacedDrag = (id, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setSelectedStickerId(id);
+    const gesture = stickerGestureRef.current;
+    if (gesture.id !== id) gesture.pointers.clear();
+    gesture.id = id;
+    gesture.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (gesture.pointers.size === 1) {
+      gesture.lastX = event.clientX;
+      gesture.lastY = event.clientY;
+    } else if (gesture.pointers.size === 2) {
+      const [a, b] = [...gesture.pointers.values()];
+      gesture.startDistance = Math.hypot(b.x - a.x, b.y - a.y);
+      gesture.startWidth = placedStickers.find((item) => item.id === id)?.w || 112;
+    }
+  };
+
+  const movePlacedDrag = (event) => {
+    const active = stickerGestureRef.current;
+    const shell = canvasShellRef.current;
+    if (!active.id || !active.pointers.has(event.pointerId) || !shell) return;
+    active.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const rect = shell.getBoundingClientRect();
+    if (active.pointers.size >= 2) {
+      const [a, b] = [...active.pointers.values()];
+      const distance = Math.hypot(b.x - a.x, b.y - a.y);
+      const nextWidth = Math.max(55, Math.min(230, active.startWidth * (distance / Math.max(1, active.startDistance))));
+      setPlacedStickers((items) => items.map((item) => item.id === active.id ? { ...item, w: nextWidth, h: nextWidth * 1.23 } : item));
+    } else {
+      const dx = ((event.clientX - active.lastX) * W) / rect.width;
+      const dy = ((event.clientY - active.lastY) * H) / rect.height;
+      active.lastX = event.clientX;
+      active.lastY = event.clientY;
+      setPlacedStickers((items) => items.map((item) => item.id === active.id ? {
+        ...item,
+        x: Math.max(LEAF_X, Math.min(W - LEAF_X, item.x + dx)),
+        y: Math.max(0, Math.min(H, item.y + dy))
+      } : item));
+    }
+  };
+
+  const endPlacedDrag = (event) => {
+    const gesture = stickerGestureRef.current;
+    gesture.pointers.delete(event.pointerId);
+    if (gesture.pointers.size === 1) {
+      const remaining = [...gesture.pointers.values()][0];
+      gesture.lastX = remaining.x;
+      gesture.lastY = remaining.y;
+    } else if (gesture.pointers.size === 0) {
+      gesture.id = null;
+    }
+  };
+
+  const loadStickerImage = (src) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const clean = document.createElement("canvas");
+      clean.width = img.width;
+      clean.height = img.height;
+      const ctx = clean.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const pixels = ctx.getImageData(0, 0, clean.width, clean.height);
+      for (let i = 0; i < pixels.data.length; i += 4) {
+        if (pixels.data[i] > 245 && pixels.data[i + 1] > 245 && pixels.data[i + 2] > 245) pixels.data[i + 3] = 0;
+      }
+      ctx.putImageData(pixels, 0, 0);
+      resolve(clean);
+    };
+    img.src = src;
+  });
+
+  const createSavedDesign = async () => {
     const mask = leafRef.current;
     const strokes = document.createElement("canvas");
     strokes.width = W;
@@ -169,12 +293,18 @@ export default function EditPage() {
     outputCtx.drawImage(mask, LEAF_X, 0, LEAF_SIZE, LEAF_SIZE);
     outputCtx.globalCompositeOperation = "source-over";
     outputCtx.drawImage(strokes, 0, 0);
+    const stickerImages = await Promise.all(placedStickers.map((item) => loadStickerImage(item.src)));
+    placedStickers.forEach((item, index) => {
+      outputCtx.drawImage(stickerImages[index], item.x - item.w / 2, item.y - item.h / 2, item.w, item.h);
+    });
+    outputCtx.globalCompositeOperation = "destination-in";
+    outputCtx.drawImage(mask, LEAF_X, 0, LEAF_SIZE, LEAF_SIZE);
     return output.toDataURL("image/png");
   };
 
   const send = async () => {
     setSending(true);
-    const image = createSavedDesign();
+    const image = await createSavedDesign();
     try {
       if (typeof window !== "undefined") {
         sessionStorage.setItem("nescafe-design", image);
@@ -195,6 +325,8 @@ export default function EditPage() {
       setSending(false);
     }
   };
+
+  const selectedSticker = placedStickers.find((item) => item.id === selectedStickerId);
 
   return (
     <motion.main
@@ -232,10 +364,25 @@ export default function EditPage() {
         </aside>
 
         <div className="studio">
-          <div className="canvas-shell">
+          <div ref={canvasShellRef} className="canvas-shell" onPointerDownCapture={(event) => {if(event.target.tagName === "CANVAS") setSelectedStickerId(null)}}>
             <img ref={leafRef} className="leaf-mask-source" src="/assets/nescafe-leaf.png" alt="" />
             <div className="leaf-image" style={{ backgroundColor: leafColor }} role="img" aria-label="NESCAFÉ leaf drawing canvas" />
             <DrawingCanvas canvasRef={canvasRef} color={color} tool={tool} size={size} onHistory={snapshot} />
+            <div className="placed-stickers">
+              {placedStickers.map((sticker) => (
+                <div
+                  key={sticker.id}
+                  className={`placed-sticker${selectedStickerId === sticker.id ? " selected" : ""}`}
+                  onPointerDown={(event) => startPlacedDrag(sticker.id, event)}
+                  onPointerMove={movePlacedDrag}
+                  onPointerUp={endPlacedDrag}
+                  onPointerCancel={endPlacedDrag}
+                  style={{ left: `${(sticker.x / W) * 100}%`, top: `${(sticker.y / H) * 100}%`, width: `${(sticker.w / W) * 100}%`, height: `${(sticker.h / H) * 100}%` }}
+                >
+                  <img src={sticker.src} alt={sticker.label} />
+                </div>
+              ))}
+            </div>
             <span className="canvas-hint">YOUR WORLD STARTS HERE</span>
           </div>
         </div>
@@ -244,84 +391,195 @@ export default function EditPage() {
           <span>DROP A DOODLE</span>
           <div>
             {STICKERS.map((s) => (
-              <motion.button whileHover={{ scale: 1.06, rotate: -2 }} whileTap={{ scale: 0.92 }} key={s.src} onClick={() => addSticker(s)}>
+              <motion.button
+                key={s.src}
+                onPointerDown={(event) => startTrayDrag(s, event)}
+                onPointerMove={moveTrayDrag}
+                onPointerUp={endTrayDrag}
+                onPointerCancel={endTrayDrag}
+                whileHover={{ scale: 1.06, rotate: -2 }}
+                aria-label={`Drag ${s.label} onto the leaf`}
+              >
                 <img src={s.src} alt={s.label} />
-                <b>+</b>
               </motion.button>
             ))}
           </div>
         </aside>
       </section>
 
+      {dragPreview && (
+        <div className="sticker-drag-preview" style={{ left: dragPreview.x, top: dragPreview.y }}>
+          <img src={dragPreview.sticker.src} alt="" />
+        </div>
+      )}
+
+      {selectedSticker && (
+        <div className="sticker-resize-control">
+          <ArrowsOutSimple weight="bold" />
+          <input
+            aria-label="Resize selected doodle"
+            type="range"
+            min="55"
+            max="230"
+            value={Math.round(selectedSticker.w)}
+            onChange={(event) => {
+              const width = Number(event.target.value);
+              setPlacedStickers((items) => items.map((item) => item.id === selectedSticker.id ? { ...item, w: width, h: width * 1.23 } : item));
+            }}
+          />
+        </div>
+      )}
+
       {/* Bottom Controls Bar with Both Color Sections */}
       <div className="editor-controls-bar">
         {/* Left Section: Pen Ink Color Palette */}
         <div className="control-dock ink-dock">
-          <div className="dock-badge">
-            <IoIosColorPalette size={21} className="dock-icon" />
-            <span>INK</span>
-          </div>
-          <label className="color-picker-btn" title="Choose custom ink color">
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => {
-                setColor(e.target.value);
-                setTool("pen");
-              }}
-            />
-            <span className="picker-swatch" style={{ background: color }} />
-          </label>
-          <div className="swatch-group">
-            {INK_COLORS.map((c) => (
-              <button
-                key={c}
-                onClick={() => {
-                  setColor(c);
-                  setTool("pen");
-                }}
-                className={color === c ? "swatch selected" : "swatch"}
-                style={{ background: c }}
-                aria-label={`Use ink color ${c}`}
-              />
-            ))}
+          <div className="dock-column">
+            <div className="dock-color-section">
+              {/* Green circled button: Pill with Palette icon and Current Color dot */}
+              <div className="color-plate-pill">
+                <button
+                  type="button"
+                  className="palette-btn-icon"
+                  onClick={openInkPicker}
+                  title="Choose custom color"
+                  aria-label="Open color plate to choose"
+                >
+                  <IoIosColorPalette size={22} className="palette-logo-icon" />
+                </button>
+
+                {/* Hidden native color input */}
+                <input
+                  ref={inkInputRef}
+                  type="color"
+                  value={color}
+                  onChange={(e) => {
+                    setColor(e.target.value);
+                    setTool("pen");
+                  }}
+                  className="native-color-input-hidden"
+                  aria-hidden="true"
+                />
+
+                {/* Current color dot */}
+                <button
+                  type="button"
+                  className="active-color-dot"
+                  style={{ backgroundColor: color }}
+                  onClick={openInkPicker}
+                  title="Current color (click to choose)"
+                  aria-label="Current color"
+                />
+              </div>
+
+              {/* Yellow marked things: Auto-visible predefined swatches */}
+              <div className="swatch-group auto-visible-swatches">
+                {INK_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setColor(c);
+                      setTool("pen");
+                    }}
+                    className={color === c ? "swatch selected" : "swatch"}
+                    style={{ background: c }}
+                    aria-label={`Use ink color ${c}`}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Ink text and pen icon placed below the color section */}
+            <div className="dock-sub-label">
+              <PenNib size={12} weight="fill" className="sub-icon" />
+              <span>INK</span>
+            </div>
           </div>
         </div>
 
         {/* Right Section: Leaf Background Color & Stroke */}
         <div className="control-dock leaf-stroke-dock">
-          <div className="leaf-section">
-            <div className="dock-badge">
-              <PaintBucket size={19} weight="fill" className="dock-icon" />
-              <span>LEAF</span>
-            </div>
-            <label className="color-picker-btn" title="Choose custom leaf background color">
-              <input type="color" value={leafColor} onChange={(e) => setLeafColor(e.target.value)} />
-              <span className="picker-swatch" style={{ background: leafColor }} />
-            </label>
-            <div className="swatch-group">
-              {LEAF_COLORS.map((c) => (
+          {/* Leaf color section */}
+          <div className="leaf-side-column">
+            <div className="dock-color-section">
+              {/* Leaf Pill with Bucket icon and Current Leaf Color dot */}
+              <div className="color-plate-pill">
                 <button
-                  key={c}
-                  onClick={() => setLeafColor(c)}
-                  className={leafColor === c ? "swatch selected" : "swatch"}
-                  style={{ background: c }}
-                  aria-label={`Use leaf color ${c}`}
+                  type="button"
+                  className="palette-btn-icon"
+                  onClick={openLeafPicker}
+                  title="Choose custom leaf color"
+                  aria-label="Open leaf color plate to choose"
+                >
+                  <PaintBucket size={19} weight="fill" className="palette-logo-icon" />
+                </button>
+
+                {/* Hidden native color input */}
+                <input
+                  ref={leafInputRef}
+                  type="color"
+                  value={leafColor}
+                  onChange={(e) => setLeafColor(e.target.value)}
+                  className="native-color-input-hidden"
+                  aria-hidden="true"
                 />
-              ))}
+
+                {/* Current leaf color dot */}
+                <button
+                  type="button"
+                  className="active-color-dot"
+                  style={{ backgroundColor: leafColor }}
+                  onClick={openLeafPicker}
+                  title="Current leaf color (click to choose)"
+                  aria-label="Current leaf color"
+                />
+              </div>
+
+              {/* Auto-visible leaf predefined swatches */}
+              <div className="swatch-group auto-visible-swatches">
+                {LEAF_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setLeafColor(c)}
+                    className={leafColor === c ? "swatch selected" : "swatch"}
+                    style={{ background: c }}
+                    aria-label={`Use leaf color ${c}`}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Replaced leaf text with the NESCAFÉ leaf logo & paint bucket icon below */}
+            <div className="dock-sub-label" title="Leaf canvas background">
+              <PaintBucket size={12} weight="fill" className="sub-icon" />
+              <img src="/assets/nescafe-leaf.png" className="dock-leaf-logo" alt="NESCAFÉ Leaf" />
             </div>
           </div>
 
           <div className="dock-divider" />
 
-          <div className="stroke-section">
-            <div className="dock-badge" title="Stroke size">
-              <PaintBrush size={18} weight="fill" className="dock-icon" />
+          {/* Stroke section */}
+          <div className="stroke-side-column">
+            <div className="stroke-control-wrap">
+              <label className="stroke-slider" title="Adjust stroke size">
+                <input
+                  type="range"
+                  min="4"
+                  max="42"
+                  value={size}
+                  onChange={(e) => setSize(+e.target.value)}
+                />
+                <b style={{ width: Math.max(5, size / 1.7), height: Math.max(5, size / 1.7) }} />
+              </label>
             </div>
-            <label className="stroke-slider" title="Adjust stroke size">
-              <input type="range" min="4" max="42" value={size} onChange={(e) => setSize(+e.target.value)} />
-              <b style={{ width: Math.max(5, size / 1.7), height: Math.max(5, size / 1.7) }} />
-            </label>
+            <div className="dock-sub-label stroke-sub-label">
+              <PaintBrush size={12} weight="fill" className="sub-icon" />
+              <span>STROKE</span>
+            </div>
           </div>
         </div>
       </div>
