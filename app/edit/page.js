@@ -29,6 +29,23 @@ const STICKERS = [
 ];
 const INK_COLORS = ["#ed1c2e", "#ffca28", "#52d19b", "#72b7ff", "#ffffff", "#140508"];
 const LEAF_COLORS = ["#ffffff", "#f5ebdf", "#ebd5bf", "#fce2db", "#e2ece9", "#dae8f5", "#a21f25", "#5b1317", "#241215", "#1e3a5f"];
+const EDITOR_COLOR = "#a21f25";
+
+const luminance = (hex) => {
+  const rgb = hex.replace("#", "").match(/.{2}/g).map((value) => parseInt(value, 16) / 255).map((value) => value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+};
+
+const contrast = (a, b) => {
+  const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+const controlColors = (leafColor) => {
+  const candidates = ["#ffffff", "#111111", "#00e5ff", "#ffe600", "#74ff70"];
+  const outline = candidates.reduce((best, color) => Math.min(contrast(color, leafColor), contrast(color, EDITOR_COLOR)) > Math.min(contrast(best, leafColor), contrast(best, EDITOR_COLOR)) ? color : best);
+  return { outline, ink: contrast(outline, "#111111") > contrast(outline, "#ffffff") ? "#111111" : "#ffffff" };
+};
 
 function DrawingCanvas({ canvasRef, color, tool, size, onHistory }) {
   const drawing = useRef(false);
@@ -371,6 +388,7 @@ export default function EditPage() {
   };
 
   const selectedSticker = placedStickers.find((item) => item.id === selectedStickerId);
+  const transformColors = controlColors(leafColor);
 
   return (
     <motion.main
@@ -412,7 +430,7 @@ export default function EditPage() {
             <img ref={leafRef} className="leaf-mask-source" src="/assets/nescafe-leaf.png" alt="" />
             <div className="leaf-image" style={{ backgroundColor: leafColor }} role="img" aria-label="NESCAFÉ leaf drawing canvas" />
             <DrawingCanvas canvasRef={canvasRef} color={color} tool={tool} size={size} onHistory={snapshot} />
-            <div className="placed-stickers">
+            <div className="placed-stickers" style={{ "--selection-color": transformColors.outline, "--selection-ink": transformColors.ink }}>
               {placedStickers.map((sticker) => (
                 <div
                   key={sticker.id}
