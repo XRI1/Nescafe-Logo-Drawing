@@ -5,13 +5,15 @@ import {
   ArrowCounterClockwise,
   ArrowLeft,
   ArrowClockwise,
+  CheckCircle,
   Eraser,
   PaintBucket,
   PaintBrush,
   PaperPlaneTilt,
   PenNib,
   PencilSimple,
-  Trash
+  Trash,
+  X
 } from "@phosphor-icons/react";
 import { IoIosColorPalette } from "react-icons/io";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -114,6 +116,8 @@ export default function EditPage() {
   const [tool, setTool] = useState("pen");
   const [size, setSize] = useState(18);
   const [sending, setSending] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [sentMessage, setSentMessage] = useState(false);
   const [placedStickers, setPlacedStickers] = useState([]);
   const [selectedStickerId, setSelectedStickerId] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
@@ -365,7 +369,13 @@ export default function EditPage() {
     return output.toDataURL("image/png");
   };
 
-  const send = async () => {
+  const handleOpenConfirm = () => {
+    if (sending || sentMessage) return;
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSend = async () => {
+    setShowConfirm(false);
     setSending(true);
     try {
       const image = await createSavedDesign();
@@ -378,10 +388,12 @@ export default function EditPage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to send your design");
-      router.push("/nescafe");
+      setSentMessage(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error) {
       window.alert(error.message || "Unable to send your design. Please try again.");
-    } finally {
       setSending(false);
     }
   };
@@ -629,10 +641,94 @@ export default function EditPage() {
         </div>
       </div>
 
-      <button className="send-btn" onClick={send} disabled={sending}>
-        <span>{sending ? "LAUNCHING..." : "SEND TO THE WORLD"}</span>
+      <button
+        className="send-btn"
+        onClick={handleOpenConfirm}
+        disabled={sending || sentMessage}
+      >
+        <span>
+          {sending ? "LAUNCHING..." : sentMessage ? "LAUNCHED!" : "SEND TO THE WORLD"}
+        </span>
         <PaperPlaneTilt weight="fill" />
       </button>
+
+      {/* NESCAFÉ Themed Confirm & Success Modals */}
+      <AnimatePresence>
+        {showConfirm && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => !sending && setShowConfirm(false)}
+          >
+            <motion.div
+              className="nescafe-modal"
+              initial={{ scale: 0.9, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 12 }}
+              transition={{ type: "spring", stiffness: 340, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setShowConfirm(false)}
+                aria-label="Close dialog"
+              >
+                <X size={15} />
+              </button>
+
+              <h3 className="modal-title-pacifico">Make Your World</h3>
+              <p className="modal-subtitle">
+                Ready to send your creation into the world? It will take flight across the Earth globe for everyone to see.
+              </p>
+
+              <div className="nescafe-modal-actions">
+                <button
+                  type="button"
+                  className="modal-btn-cancel"
+                  onClick={() => setShowConfirm(false)}
+                >
+                  KEEP EDITING
+                </button>
+                <button
+                  type="button"
+                  className="modal-btn-confirm"
+                  onClick={handleConfirmSend}
+                >
+                  <span>SEND NOW</span>
+                  <PaperPlaneTilt weight="fill" size={15} />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {sentMessage && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <motion.div
+              className="nescafe-modal"
+              initial={{ scale: 0.88, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 350, damping: 24 }}
+            >
+              <h3 className="modal-title-pacifico">Flown to the World!</h3>
+              <p className="modal-subtitle">
+                Your design is now orbiting high above the Earth. Preparing a fresh canvas...
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.main>
   );
 }
