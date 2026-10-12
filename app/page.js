@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowCounterClockwise, ArrowLeft, ArrowRight, Check, Eraser, PaperPlaneTilt, PencilSimple, Trash } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, ArrowLeft, ArrowRight, Check, Eraser, PaintBucket, Palette, PaperPlaneTilt, PencilSimple, Trash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const W = 760;
@@ -96,9 +96,11 @@ function Editor({ onSend, onBack }) {
             <span className="canvas-hint">YOUR WORLD STARTS HERE</span>
           </div>
           <div className="controls">
-            <div className="palette"><small>INK</small><label className="color-picker" title="Choose any pen color"><input type="color" value={color} onChange={e=>{setColor(e.target.value);setTool("pen")}}/><span style={{background:color}}/></label>{COLORS.map(c=><button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"selected":""} style={{background:c}} aria-label={`Use ${c}`}/>)}</div>
-            <label className="leaf-picker"><small>LEAF</small><input type="color" value={leafColor} onChange={e=>setLeafColor(e.target.value)}/><span style={{background:leafColor}}/></label>
-            <label className="stroke"><small>STROKE</small><input type="range" min="5" max="42" value={size} onChange={e=>setSize(+e.target.value)}/><b style={{width:size/1.8,height:size/1.8}}/></label>
+            <div className="palette"><Palette className="control-icon" weight="duotone" aria-label="Pen colors"/><label className="color-picker" title="Choose any pen color"><input type="color" value={color} onChange={e=>{setColor(e.target.value);setTool("pen")}}/><span style={{background:color}}/></label>{COLORS.map(c=><button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"selected":""} style={{background:c}} aria-label={`Use ${c}`}/>)}</div>
+            <div className="right-controls">
+              <label className="leaf-picker"><PaintBucket className="control-icon" weight="duotone" aria-label="Leaf color"/><input type="color" value={leafColor} onChange={e=>setLeafColor(e.target.value)}/><span style={{background:leafColor}}/></label>
+              <label className="stroke"><small>STROKE</small><input type="range" min="5" max="42" value={size} onChange={e=>setSize(+e.target.value)}/><b style={{width:size/1.8,height:size/1.8}}/></label>
+            </div>
           </div>
         </div>
         <aside className="stickers"><span>DROP A DOODLE</span><div>{STICKERS.map(s=><motion.button whileHover={{scale:1.06,rotate:-2}} whileTap={{scale:.92}} key={s.src} onClick={()=>addSticker(s)}><img src={s.src} alt={s.label}/><b>+</b></motion.button>)}</div></aside>
