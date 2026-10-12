@@ -71,7 +71,8 @@
 .live-world .landing-earth{z-index:0;user-select:none;pointer-events:none}
 .live-world .world-center-wrap{z-index:2}
 .live-world .flight-layer{position:absolute;inset:0;z-index:4;overflow:hidden;pointer-events:none}
-.flight-design{position:absolute;left:0;top:0;width:clamp(276px,calc(9vw + 200px),376px);height:auto;object-fit:contain;opacity:0;offset-distance:0%;offset-anchor:center;offset-rotate:0deg;filter:drop-shadow(0 12px 16px rgba(0,0,0,.5));will-change:offset-distance,transform,opacity;animation:nescafe-flight 22s linear infinite}
+.flight-design{position:absolute;left:0;top:0;width:clamp(276px,calc(9vw + 200px),376px);opacity:0;offset-distance:0%;offset-anchor:center;offset-rotate:0deg;filter:drop-shadow(0 12px 16px rgba(0,0,0,.45));will-change:offset-distance,transform,opacity;animation:nescafe-flight 22s linear infinite}
+.flight-design-image{position:relative;display:block;width:100%;height:auto;object-fit:contain;filter:drop-shadow(0 0 6px var(--design-glow)) drop-shadow(0 0 10px color-mix(in srgb,var(--design-glow) 55%,transparent))}
 @keyframes nescafe-flight{
   0%{opacity:0;offset-distance:0%;transform:scale(calc(var(--flight-scale)*.72)) rotate(calc(var(--flight-wobble) - 5deg))}
   5%{opacity:1}

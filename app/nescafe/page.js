@@ -9,7 +9,28 @@ const FLIGHT_SECONDS = 22;
 function preloadDesign(design) {
   return new Promise((resolve) => {
     const image = new Image();
-    image.onload = () => resolve(design);
+    image.onload = () => {
+      let glowColor = "rgb(255 255 255)";
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, 32, 32);
+        const pixels = context.getImageData(0, 0, 32, 32).data;
+        let red = 0, green = 0, blue = 0, weight = 0;
+        for (let index = 0; index < pixels.length; index += 4) {
+          const alpha = pixels[index + 3] / 255;
+          if (alpha < 0.15) continue;
+          red += pixels[index] * alpha;
+          green += pixels[index + 1] * alpha;
+          blue += pixels[index + 2] * alpha;
+          weight += alpha;
+        }
+        if (weight) glowColor = `rgb(${Math.round(red / weight)} ${Math.round(green / weight)} ${Math.round(blue / weight)})`;
+      } catch {}
+      resolve({ ...design, glowColor });
+    };
     image.onerror = () => resolve(null);
     image.src = design.imageUrl;
   });
@@ -80,7 +101,7 @@ export default function NescafePage() {
     return () => source.close();
   }, [acceptDesign, reconcile]);
 
-  const flightPath = `path("M -250 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * -0.08)} ${viewport.width + 250} ${Math.round(viewport.height * 0.52)}")`;
+  const flightPath = `path("M -250 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * 0.04)} ${viewport.width + 250} ${Math.round(viewport.height * 0.52)}")`;
 
   const replaceAtBoundary = (slotId) => {
     if (!queueRef.current.length) return;
@@ -102,19 +123,20 @@ export default function NescafePage() {
       </div>
       <div className="flight-layer" aria-label="Live NESCAFÉ designs">
         {slots.map((slot, index) => (
-          <img
+          <div
             key={`${slot.slotId}-${slot.revision}`}
             className="flight-design"
-            src={slot.design.imageUrl}
-            alt="Community-designed NESCAFÉ leaf"
             style={{
               animationDelay: `${slot.delay}s`,
               offsetPath: flightPath,
               "--flight-scale": 0.82 + (index % 4) * 0.08,
-              "--flight-wobble": `${-7 + (index % 5) * 3}deg`
+              "--flight-wobble": `${-7 + (index % 5) * 3}deg`,
+              "--design-glow": slot.design.glowColor
             }}
             onAnimationIteration={() => replaceAtBoundary(slot.slotId)}
-          />
+          >
+            <img className="flight-design-image" src={slot.design.imageUrl} alt="Community-designed NESCAFÉ leaf" />
+          </div>
         ))}
       </div>
     </motion.main>
