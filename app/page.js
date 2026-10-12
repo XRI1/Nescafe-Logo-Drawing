@@ -2,11 +2,12 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowCounterClockwise, ArrowLeft, ArrowRight, Check, Eraser, PaperPlaneTilt, PencilSimple, Trash } from "@phosphor-icons/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const W = 760;
 const H = 560;
-const LEAF_PATH = "M 180 470 C 315 405, 340 300, 370 160 C 392 58, 462 48, 625 48 C 604 224, 576 360, 480 428 C 392 490, 282 486, 180 470 Z";
+const LEAF_SIZE = 560;
+const LEAF_X = (W - LEAF_SIZE) / 2;
 const STICKERS = [
   { src: "/assets/sticker-love.png", label: "Love" },
   { src: "/assets/sticker-secret.png", label: "Secret" },
@@ -45,7 +46,7 @@ function DrawingCanvas({ canvasRef, color, tool, size, onHistory }) {
     if (!drawing.current) return;
     const ctx = canvasRef.current.getContext("2d");
     const p = point(event);
-    ctx.save(); ctx.clip(new Path2D(LEAF_PATH)); ctx.lineCap="round"; ctx.lineJoin="round"; ctx.lineWidth=size;
+    ctx.save(); ctx.lineCap="round"; ctx.lineJoin="round"; ctx.lineWidth=size;
     ctx.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
     ctx.strokeStyle=color; ctx.beginPath(); ctx.moveTo(last.current.x,last.current.y); ctx.lineTo(p.x,p.y); ctx.stroke(); ctx.restore(); last.current=p;
   };
@@ -54,8 +55,10 @@ function DrawingCanvas({ canvasRef, color, tool, size, onHistory }) {
 
 function Editor({ onSend, onBack }) {
   const canvasRef = useRef(null);
+  const leafRef = useRef(null);
   const history = useRef([]);
   const [color,setColor]=useState(COLORS[0]);
+  const [leafColor,setLeafColor]=useState("#ffffff");
   const [tool,setTool]=useState("pen");
   const [size,setSize]=useState(18);
   const [sending,setSending]=useState(false);
@@ -65,8 +68,9 @@ function Editor({ onSend, onBack }) {
   const restore=(url)=>{const img=new Image();img.onload=()=>{const ctx=canvasRef.current.getContext("2d");ctx.clearRect(0,0,W,H);ctx.drawImage(img,0,0)};img.src=url;};
   const undo=()=>{if(history.current.length<=1)return;history.current.pop();restore(history.current.at(-1));};
   const clear=()=>{canvasRef.current.getContext("2d").clearRect(0,0,W,H);snapshot();};
-  const addSticker=(sticker)=>{const img=new Image();img.onload=()=>{const ctx=canvasRef.current.getContext("2d");const off=document.createElement("canvas");off.width=img.width;off.height=img.height;const ox=off.getContext("2d",{willReadFrequently:true});ox.drawImage(img,0,0);const data=ox.getImageData(0,0,off.width,off.height);for(let i=0;i<data.data.length;i+=4){if(data.data[i]>245&&data.data[i+1]>245&&data.data[i+2]>245)data.data[i+3]=0;}ox.putImageData(data,0,0);ctx.save();ctx.clip(new Path2D(LEAF_PATH));const ratio=img.width/img.height;const h=150;ctx.drawImage(off,355-h*ratio/2,205,h*ratio,h);ctx.restore();snapshot();};img.src=sticker.src;};
-  const send=async()=>{setSending(true);const image=canvasRef.current.toDataURL("image/png");try{const res=await fetch("/api/designs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image})});if(!res.ok)throw new Error();await new Promise(r=>setTimeout(r,700));onSend(image);}catch{setSending(false);alert("Could not save your world. Please try again.");}};
+  const addSticker=(sticker)=>{const img=new Image();img.onload=()=>{const ctx=canvasRef.current.getContext("2d");const off=document.createElement("canvas");off.width=img.width;off.height=img.height;const ox=off.getContext("2d",{willReadFrequently:true});ox.drawImage(img,0,0);const data=ox.getImageData(0,0,off.width,off.height);for(let i=0;i<data.data.length;i+=4){if(data.data[i]>245&&data.data[i+1]>245&&data.data[i+2]>245)data.data[i+3]=0;}ox.putImageData(data,0,0);const ratio=img.width/img.height;const h=150;ctx.drawImage(off,355-h*ratio/2,205,h*ratio,h);snapshot();};img.src=sticker.src;};
+  const createSavedDesign=()=>{const mask=leafRef.current;const strokes=document.createElement("canvas");strokes.width=W;strokes.height=H;const strokesCtx=strokes.getContext("2d");strokesCtx.drawImage(canvasRef.current,0,0);strokesCtx.globalCompositeOperation="destination-in";strokesCtx.drawImage(mask,LEAF_X,0,LEAF_SIZE,LEAF_SIZE);const output=document.createElement("canvas");output.width=W;output.height=H;const outputCtx=output.getContext("2d");outputCtx.fillStyle=leafColor;outputCtx.fillRect(0,0,W,H);outputCtx.globalCompositeOperation="destination-in";outputCtx.drawImage(mask,LEAF_X,0,LEAF_SIZE,LEAF_SIZE);outputCtx.globalCompositeOperation="source-over";outputCtx.drawImage(strokes,0,0);return output.toDataURL("image/png");};
+  const send=async()=>{setSending(true);const image=createSavedDesign();try{const res=await fetch("/api/designs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image})});if(!res.ok)throw new Error();await new Promise(r=>setTimeout(r,700));onSend(image);}catch{setSending(false);alert("Could not save your world. Please try again.");}};
 
   return (
     <motion.main className="editor screen" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
@@ -74,7 +78,7 @@ function Editor({ onSend, onBack }) {
         <div className="editor-ribbon">
           <button className="nav-back" onClick={onBack} aria-label="Back to landing page"><ArrowLeft/> <span>BACK</span></button>
           <strong>LET&apos;S MAKE YOUR WORLD</strong>
-          <img src="/assets/nescafe-logo.png" alt="NESCAFÉ — Make your world" />
+          <img src="/assets/nescafe-logo-trimmed.png" alt="NESCAFÉ — Make your world" />
         </div>
       </header>
       <section className="editor-grid">
@@ -86,12 +90,14 @@ function Editor({ onSend, onBack }) {
         </aside>
         <div className="studio">
           <div className="canvas-shell">
-            <svg className="leaf-guide" viewBox={`0 0 ${W} ${H}`} aria-hidden="true"><path d="M 180 470 C 315 405, 340 300, 370 160 C 392 58, 462 48, 625 48 C 604 224, 576 360, 480 428 C 392 490, 282 486, 180 470 Z"/></svg>
+            <img ref={leafRef} className="leaf-mask-source" src="/assets/nescafe-leaf.png" alt="" />
+            <div className="leaf-image" style={{backgroundColor:leafColor}} role="img" aria-label="NESCAFÉ leaf drawing canvas" />
             <DrawingCanvas canvasRef={canvasRef} color={color} tool={tool} size={size} onHistory={snapshot}/>
             <span className="canvas-hint">YOUR WORLD STARTS HERE</span>
           </div>
           <div className="controls">
-            <div className="palette"><small>INK</small>{COLORS.map(c=><button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"selected":""} style={{background:c}} aria-label={`Use ${c}`}/>)}</div>
+            <div className="palette"><small>INK</small><label className="color-picker" title="Choose any pen color"><input type="color" value={color} onChange={e=>{setColor(e.target.value);setTool("pen")}}/><span style={{background:color}}/></label>{COLORS.map(c=><button key={c} onClick={()=>{setColor(c);setTool("pen")}} className={color===c?"selected":""} style={{background:c}} aria-label={`Use ${c}`}/>)}</div>
+            <label className="leaf-picker"><small>LEAF</small><input type="color" value={leafColor} onChange={e=>setLeafColor(e.target.value)}/><span style={{background:leafColor}}/></label>
             <label className="stroke"><small>STROKE</small><input type="range" min="5" max="42" value={size} onChange={e=>setSize(+e.target.value)}/><b style={{width:size/1.8,height:size/1.8}}/></label>
           </div>
         </div>
@@ -121,7 +127,7 @@ export default function Home(){
   const[design,setDesign]=useState(null);
   const[restored,setRestored]=useState(false);
 
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     const savedStage=sessionStorage.getItem("nescafe-stage");
     const savedDesign=sessionStorage.getItem("nescafe-design");
     if(savedStage==="editor"||(savedStage==="world"&&savedDesign)) setStage(savedStage);
@@ -135,7 +141,7 @@ export default function Home(){
     if(design) sessionStorage.setItem("nescafe-design",design);
   },[stage,design,restored]);
 
-  if(!restored)return <main className="screen editor"/>;
+  if(!restored)return null;
 
   return <AnimatePresence mode="wait">{stage==="landing"&&<Landing key="landing" onStart={()=>setStage("editor")}/>} {stage==="editor"&&<Editor key="editor" onBack={()=>setStage("landing")} onSend={(img)=>{setDesign(img);setStage("world")}}/>} {stage==="world"&&<World key="world" image={design} onBack={()=>setStage("editor")} onAgain={()=>setStage("editor")}/>}</AnimatePresence>
 }
