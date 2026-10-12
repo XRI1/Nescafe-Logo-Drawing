@@ -369,6 +369,23 @@ export default function EditPage() {
     return output.toDataURL("image/png");
   };
 
+  const resetEditor = () => {
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx.clearRect(0, 0, W, H);
+    }
+    setPlacedStickers([]);
+    setSelectedStickerId(null);
+    setLeafColor("#ffffff");
+    setColor(INK_COLORS[0]);
+    setTool("pen");
+    setSize(18);
+    history.current = [];
+    if (canvasRef.current) {
+      history.current = [canvasRef.current.toDataURL()];
+    }
+  };
+
   const handleOpenConfirm = () => {
     if (sending || sentMessage) return;
     setShowConfirm(true);
@@ -388,10 +405,14 @@ export default function EditPage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Unable to send your design");
+
+      // Clear canvas and reset editor state without refreshing the page
+      resetEditor();
       setSentMessage(true);
       setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+        setSentMessage(false);
+        setSending(false);
+      }, 2200);
     } catch (error) {
       window.alert(error.message || "Unable to send your design. Please try again.");
       setSending(false);
@@ -723,7 +744,7 @@ export default function EditPage() {
             >
               <h3 className="modal-title-pacifico">Flown to the World!</h3>
               <p className="modal-subtitle">
-                Your design is now orbiting high above the Earth. Preparing a fresh canvas...
+                Your design is now orbiting high above the Earth. Canvas is cleared and ready for your next creation!
               </p>
             </motion.div>
           </motion.div>
