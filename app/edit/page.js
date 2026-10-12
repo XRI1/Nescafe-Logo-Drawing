@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowCounterClockwise,
+  ArrowClockwise,
   ArrowLeft,
   ArrowsOutSimple,
   Eraser,
@@ -27,8 +28,8 @@ const STICKERS = [
   { src: "/assets/sticker-dance.png", label: "Dance" },
   { src: "/assets/sticker-snack.png", label: "Snack" }
 ];
-const INK_COLORS = ["#ed1c2e", "#ff8c00", "#ffca28", "#52d19b", "#00bcd4", "#72b7ff", "#7047eb", "#ff78ad", "#ffffff", "#140508"];
-const LEAF_COLORS = ["#ffffff", "#f5ebdf", "#a21f25", "#241215", "#1e3a5f"];
+const INK_COLORS = ["#ed1c2e", "#ffca28", "#52d19b", "#72b7ff", "#ffffff", "#140508"];
+const LEAF_COLORS = ["#ffffff", "#f5ebdf", "#ebd5bf", "#fce2db", "#e2ece9", "#dae8f5", "#a21f25", "#5b1317", "#241215", "#1e3a5f"];
 
 function DrawingCanvas({ canvasRef, color, tool, size, onHistory }) {
   const drawing = useRef(false);
@@ -169,7 +170,7 @@ export default function EditPage() {
   const addSticker = (sticker, x, y) => {
     setPlacedStickers((items) => [...items, {
       id: crypto.randomUUID(), src: sticker.src, label: sticker.label,
-      x, y, w: 112, h: 138
+      x, y, w: 112, h: 138, rotation: 0
     }]);
   };
 
@@ -295,7 +296,11 @@ export default function EditPage() {
     outputCtx.drawImage(strokes, 0, 0);
     const stickerImages = await Promise.all(placedStickers.map((item) => loadStickerImage(item.src)));
     placedStickers.forEach((item, index) => {
-      outputCtx.drawImage(stickerImages[index], item.x - item.w / 2, item.y - item.h / 2, item.w, item.h);
+      outputCtx.save();
+      outputCtx.translate(item.x, item.y);
+      outputCtx.rotate((item.rotation * Math.PI) / 180);
+      outputCtx.drawImage(stickerImages[index], -item.w / 2, -item.h / 2, item.w, item.h);
+      outputCtx.restore();
     });
     outputCtx.globalCompositeOperation = "destination-in";
     outputCtx.drawImage(mask, LEAF_X, 0, LEAF_SIZE, LEAF_SIZE);
@@ -377,7 +382,7 @@ export default function EditPage() {
                   onPointerMove={movePlacedDrag}
                   onPointerUp={endPlacedDrag}
                   onPointerCancel={endPlacedDrag}
-                  style={{ left: `${(sticker.x / W) * 100}%`, top: `${(sticker.y / H) * 100}%`, width: `${(sticker.w / W) * 100}%`, height: `${(sticker.h / H) * 100}%` }}
+                  style={{ left: `${(sticker.x / W) * 100}%`, top: `${(sticker.y / H) * 100}%`, width: `${(sticker.w / W) * 100}%`, height: `${(sticker.h / H) * 100}%`, transform: `translate(-50%,-50%) rotate(${sticker.rotation}deg)` }}
                 >
                   <img src={sticker.src} alt={sticker.label} />
                 </div>
@@ -415,35 +420,27 @@ export default function EditPage() {
 
       {selectedSticker && (
         <div className="sticker-resize-control">
-          <ArrowsOutSimple weight="bold" />
-          <input
-            aria-label="Resize selected doodle"
-            type="range"
-            min="55"
-            max="230"
-            value={Math.round(selectedSticker.w)}
-            onChange={(event) => {
-              const width = Number(event.target.value);
-              setPlacedStickers((items) => items.map((item) => item.id === selectedSticker.id ? { ...item, w: width, h: width * 1.23 } : item));
-            }}
-          />
+          <label title="Resize selected doodle"><ArrowsOutSimple weight="bold" /><input aria-label="Resize selected doodle" type="range" min="55" max="230" value={Math.round(selectedSticker.w)} onChange={(event) => {const width=Number(event.target.value);setPlacedStickers((items)=>items.map((item)=>item.id===selectedSticker.id?{...item,w:width,h:width*1.23}:item));}}/></label>
+          <span className="sticker-control-divider" />
+          <label title="Rotate selected doodle"><ArrowClockwise weight="bold" /><input aria-label="Rotate selected doodle" type="range" min="-180" max="180" value={Math.round(selectedSticker.rotation)} onChange={(event)=>{const rotation=Number(event.target.value);setPlacedStickers((items)=>items.map((item)=>item.id===selectedSticker.id?{...item,rotation}:item));}}/></label>
         </div>
       )}
 
       {/* Bottom Controls Bar with Both Color Sections */}
       <div className="editor-controls-bar">
-        {/* Left Section: Pen Ink Color Palette */}
-        <div className="control-dock ink-dock">
-          <div className="dock-column">
+        {/* Left Section: Pen Ink Color Palette & Stroke */}
+        <div className="control-dock ink-stroke-dock">
+          {/* Ink color section */}
+          <div className="ink-side-column">
             <div className="dock-color-section">
-              {/* Green circled button: Pill with Palette icon and Current Color dot */}
+              {/* Pill with Palette icon and Current Color dot */}
               <div className="color-plate-pill">
                 <button
                   type="button"
                   className="palette-btn-icon"
                   onClick={openInkPicker}
-                  title="Choose custom color"
-                  aria-label="Open color plate to choose"
+                  title="Choose custom ink color"
+                  aria-label="Open color plate to choose ink color"
                 >
                   <IoIosColorPalette size={22} className="palette-logo-icon" />
                 </button>
@@ -461,18 +458,15 @@ export default function EditPage() {
                   aria-hidden="true"
                 />
 
-                {/* Current color dot */}
-                <button
-                  type="button"
+                {/* Current color dot (Display only, not clickable) */}
+                <span
                   className="active-color-dot"
                   style={{ backgroundColor: color }}
-                  onClick={openInkPicker}
-                  title="Current color (click to choose)"
-                  aria-label="Current color"
+                  aria-hidden="true"
                 />
               </div>
 
-              {/* Yellow marked things: Auto-visible predefined swatches */}
+              {/* Auto-visible ink color swatches */}
               <div className="swatch-group auto-visible-swatches">
                 {INK_COLORS.map((c) => (
                   <button
@@ -491,78 +485,16 @@ export default function EditPage() {
               </div>
             </div>
 
-            {/* Ink text and pen icon placed below the color section */}
+            {/* Ink text and pen icon placed below the ink color section */}
             <div className="dock-sub-label">
               <PenNib size={12} weight="fill" className="sub-icon" />
               <span>INK</span>
             </div>
           </div>
-        </div>
-
-        {/* Right Section: Leaf Background Color & Stroke */}
-        <div className="control-dock leaf-stroke-dock">
-          {/* Leaf color section */}
-          <div className="leaf-side-column">
-            <div className="dock-color-section">
-              {/* Leaf Pill with Bucket icon and Current Leaf Color dot */}
-              <div className="color-plate-pill">
-                <button
-                  type="button"
-                  className="palette-btn-icon"
-                  onClick={openLeafPicker}
-                  title="Choose custom leaf color"
-                  aria-label="Open leaf color plate to choose"
-                >
-                  <PaintBucket size={19} weight="fill" className="palette-logo-icon" />
-                </button>
-
-                {/* Hidden native color input */}
-                <input
-                  ref={leafInputRef}
-                  type="color"
-                  value={leafColor}
-                  onChange={(e) => setLeafColor(e.target.value)}
-                  className="native-color-input-hidden"
-                  aria-hidden="true"
-                />
-
-                {/* Current leaf color dot */}
-                <button
-                  type="button"
-                  className="active-color-dot"
-                  style={{ backgroundColor: leafColor }}
-                  onClick={openLeafPicker}
-                  title="Current leaf color (click to choose)"
-                  aria-label="Current leaf color"
-                />
-              </div>
-
-              {/* Auto-visible leaf predefined swatches */}
-              <div className="swatch-group auto-visible-swatches">
-                {LEAF_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setLeafColor(c)}
-                    className={leafColor === c ? "swatch selected" : "swatch"}
-                    style={{ background: c }}
-                    aria-label={`Use leaf color ${c}`}
-                    title={c}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Replaced leaf text with the NESCAFÉ leaf logo & paint bucket icon below */}
-            <div className="dock-sub-label" title="Leaf canvas background">
-              <PaintBucket size={12} weight="fill" className="sub-icon" />
-              <img src="/assets/nescafe-leaf.png" className="dock-leaf-logo" alt="NESCAFÉ Leaf" />
-            </div>
-          </div>
 
           <div className="dock-divider" />
 
-          {/* Stroke section */}
+          {/* Stroke section moved to INK side */}
           <div className="stroke-side-column">
             <div className="stroke-control-wrap">
               <label className="stroke-slider" title="Adjust stroke size">
@@ -579,6 +511,63 @@ export default function EditPage() {
             <div className="dock-sub-label stroke-sub-label">
               <PaintBrush size={12} weight="fill" className="sub-icon" />
               <span>STROKE</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section: Logo Background Color */}
+        <div className="control-dock logo-dock">
+          <div className="logo-side-column">
+            <div className="dock-color-section">
+              {/* Logo Pill with same Palette Button and Current Logo Color dot */}
+              <div className="color-plate-pill">
+                <button
+                  type="button"
+                  className="palette-btn-icon"
+                  onClick={openLeafPicker}
+                  title="Choose custom logo color"
+                  aria-label="Open color plate to choose logo color"
+                >
+                  <IoIosColorPalette size={22} className="palette-logo-icon" />
+                </button>
+
+                {/* Hidden native color input */}
+                <input
+                  ref={leafInputRef}
+                  type="color"
+                  value={leafColor}
+                  onChange={(e) => setLeafColor(e.target.value)}
+                  className="native-color-input-hidden"
+                  aria-hidden="true"
+                />
+
+                {/* Current logo color dot (Display only, not clickable) */}
+                <span
+                  className="active-color-dot"
+                  style={{ backgroundColor: leafColor }}
+                  aria-hidden="true"
+                />
+              </div>
+
+              {/* Auto-visible logo color swatches */}
+              <div className="swatch-group auto-visible-swatches">
+                {LEAF_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setLeafColor(c)}
+                    className={leafColor === c ? "swatch selected" : "swatch"}
+                    style={{ background: c }}
+                    aria-label={`Use logo color ${c}`}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Replaced icons with "LOGO" text */}
+            <div className="dock-sub-label" title="Logo canvas background">
+              <span>LOGO</span>
             </div>
           </div>
         </div>
