@@ -45,6 +45,59 @@ const SHOOTING_STARS = [
   { top: 12, left: 38, angle: 30, dist: 500, duration: 13, delay: 12 }
 ];
 
+// Each UFO crosses the sky on its own route, size and speed, then waits off-screen.
+const UFOS = [
+  { id: "a", size: "clamp(30px,2.8vw,52px)", from: ["105vw", "11vh"], to: ["-20vw", "11vh"], duration: 40, delay: 4, bob: 3.2 },
+  { id: "b", size: "clamp(23px,2.1vw,39px)", from: ["105vw", "27vh"], to: ["-20vw", "15vh"], duration: 30, delay: 17, bob: 2.4 },
+  { id: "c", size: "clamp(46px,4.2vw,78px)", from: ["-20vw", "3vh"], to: ["105vw", "16vh"], duration: 56, delay: 29, bob: 4.4 }
+];
+
+function Ufo({ ufo }) {
+  const gradient = (name) => `ufo-${name}-${ufo.id}`;
+  return (
+    <div
+      className="ufo-track"
+      style={{
+        width: ufo.size,
+        "--fx": ufo.from[0],
+        "--fy": ufo.from[1],
+        "--tx": ufo.to[0],
+        "--ty": ufo.to[1],
+        animationDuration: `${ufo.duration}s`,
+        animationDelay: `${ufo.delay}s`
+      }}
+    >
+      <svg className="ufo" viewBox="0 0 140 76" role="presentation" style={{ animationDuration: `${ufo.bob}s` }}>
+        <defs>
+          <linearGradient id={gradient("body")} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#dbe9ff" />
+            <stop offset="0.5" stopColor="#8aa6cf" />
+            <stop offset="1" stopColor="#3d4f78" />
+          </linearGradient>
+          <radialGradient id={gradient("dome")} cx="0.4" cy="0.3" r="0.8">
+            <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="0.6" stopColor="#8fd0ff" stopOpacity="0.7" />
+            <stop offset="1" stopColor="#3a7bd5" stopOpacity="0.55" />
+          </radialGradient>
+          <linearGradient id={gradient("beam")} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#9fd4ff" stopOpacity="0.45" />
+            <stop offset="1" stopColor="#9fd4ff" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="M52 52 L88 52 L112 76 L28 76 Z" fill={`url(#${gradient("beam")})`} />
+        <path d="M46 32 C46 14 94 14 94 32 Z" fill={`url(#${gradient("dome")})`} stroke="#bfe0ff" strokeOpacity="0.7" strokeWidth="1" />
+        <ellipse cx="70" cy="38" rx="62" ry="15" fill={`url(#${gradient("body")})`} />
+        <ellipse cx="70" cy="34" rx="62" ry="12" fill="none" stroke="#ffffff" strokeOpacity="0.35" strokeWidth="1" />
+        <circle className="ufo-light l1" cx="26" cy="40" r="3" />
+        <circle className="ufo-light l2" cx="48" cy="45" r="3" />
+        <circle className="ufo-light l3" cx="70" cy="47" r="3" />
+        <circle className="ufo-light l1" cx="92" cy="45" r="3" />
+        <circle className="ufo-light l2" cx="114" cy="40" r="3" />
+      </svg>
+    </div>
+  );
+}
+
 function preloadDesign(design) {
   return new Promise((resolve) => {
     const image = new Image();
@@ -306,6 +359,11 @@ export default function NescafePage() {
               animationDelay: `${shot.delay}s`
             }}
           />
+        ))}
+      </div>
+      <div className="star-layer" aria-hidden="true">
+        {UFOS.map((ufo) => (
+          <Ufo key={ufo.id} ufo={ufo} />
         ))}
       </div>
       <div className="world-center-wrap" aria-hidden="true">

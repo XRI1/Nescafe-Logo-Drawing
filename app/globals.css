@@ -116,3 +116,12 @@
 .shooting-star{position:absolute;width:clamp(90px,9vw,150px);height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(150,200,255,0),rgba(190,225,255,.75) 70%,#fff);box-shadow:0 0 8px 1px rgba(150,200,255,.55);opacity:0;transform-origin:left center;animation:shooting-star 12s linear infinite}
 @keyframes shooting-star{0%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(0)}1.5%{opacity:1}7%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(var(--shoot-dist))}100%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(var(--shoot-dist))}}
 @media(prefers-reduced-motion:reduce){.shooting-star{display:none}}
+.ufo-track{position:absolute;left:0;top:0;opacity:0;animation:ufo-cross 40s linear infinite}
+.ufo{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 0 10px rgba(120,190,255,.55));animation:ufo-bob 3.2s ease-in-out infinite}
+.ufo-light{fill:#ffe9a8;filter:drop-shadow(0 0 3px #ffd36b);animation:ufo-blink 1.2s ease-in-out infinite}
+.ufo-light.l2{animation-delay:.4s;fill:#9fe3ff}
+.ufo-light.l3{animation-delay:.8s;fill:#ffb3c7}
+@keyframes ufo-cross{0%{opacity:0;transform:translate(var(--fx),var(--fy))}2%{opacity:1}43%{opacity:1}46%{opacity:0;transform:translate(var(--tx),var(--ty))}100%{opacity:0;transform:translate(var(--tx),var(--ty))}}
+@keyframes ufo-bob{0%,100%{transform:translateY(-8px) rotate(-4deg)}50%{transform:translateY(8px) rotate(4deg)}}
+@keyframes ufo-blink{0%,100%{opacity:.35}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.ufo-track{display:none}}
