@@ -107,3 +107,12 @@
 .fullscreen-toggle-btn:active{transform:scale(.94)}
 .editor-head .editor-ribbon img{right:clamp(74px,6vw,98px)}
 @media(max-width:600px){.fullscreen-toggle-btn{top:12px;right:12px;width:34px;height:34px}.editor-head .editor-ribbon img{right:52px}}
+
+.live-world .star-layer{position:absolute;inset:0;z-index:1;overflow:hidden;pointer-events:none}
+.star{position:absolute;border-radius:50%;background:rgb(var(--star-tint));box-shadow:0 0 5px 1px rgb(150 200 255/.65),0 0 12px 3px rgb(70 140 255/.32);opacity:.45;animation:star-twinkle 3.5s ease-in-out infinite}
+.star-big{box-shadow:0 0 7px 1px rgb(180 215 255/.8),0 0 18px 4px rgb(80 150 255/.4),0 0 34px 8px rgb(40 110 255/.16)}
+@keyframes star-twinkle{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:.95;transform:scale(1.25)}}
+@media(prefers-reduced-motion:reduce){.star{animation:none;opacity:.75}}
+.shooting-star{position:absolute;width:clamp(90px,9vw,150px);height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(150,200,255,0),rgba(190,225,255,.75) 70%,#fff);box-shadow:0 0 8px 1px rgba(150,200,255,.55);opacity:0;transform-origin:left center;animation:shooting-star 12s linear infinite}
+@keyframes shooting-star{0%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(0)}1.5%{opacity:1}7%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(var(--shoot-dist))}100%{opacity:0;transform:rotate(var(--shoot-angle)) translateX(var(--shoot-dist))}}
+@media(prefers-reduced-motion:reduce){.shooting-star{display:none}}

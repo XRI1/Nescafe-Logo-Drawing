@@ -5,6 +5,46 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const FLIGHT_SECONDS = 22;
 
+// Deterministic (seeded) so server and client render identical stars.
+function buildStars(count) {
+  let seed = 20260;
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const tints = ["232 243 255", "219 236 250", "196 222 255", "160 200 255"];
+  return Array.from({ length: count }, (_, id) => {
+    const x = random();
+    // Keep stars in the sky above Earth's curved horizon.
+    const horizon = 0.36 + 0.48 * Math.pow(Math.abs(x - 0.5) / 0.5, 2);
+    const y = random() * Math.max(0.05, horizon - 0.06);
+    const big = random() > 0.78;
+    return {
+      id,
+      x: x * 100,
+      y: y * 100,
+      size: big ? 3.2 + random() * 2 : 1.6 + random() * 1.4,
+      big,
+      tint: tints[Math.floor(random() * tints.length)],
+      duration: 2.4 + random() * 4,
+      delay: -random() * 6
+    };
+  });
+}
+
+const STARS = buildStars(95);
+
+// Each streak loops forever; long durations + staggered delays keep them sparse.
+const SHOOTING_STARS = [
+  { top: 8, left: 10, angle: 28, dist: 520, duration: 11, delay: 1 },
+  { top: 18, left: 52, angle: 34, dist: 460, duration: 14, delay: 5.5 },
+  { top: 5, left: 70, angle: 24, dist: 560, duration: 12, delay: 9 },
+  { top: 24, left: 24, angle: 38, dist: 420, duration: 16, delay: 3 },
+  { top: 12, left: 38, angle: 30, dist: 500, duration: 13, delay: 12 }
+];
+
 function preloadDesign(design) {
   return new Promise((resolve) => {
     const image = new Image();
@@ -235,6 +275,39 @@ export default function NescafePage() {
   return (
     <motion.main className="screen nescafe-world-screen live-world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
       <img className="landing-earth" src="/assets/earth.webp" alt="Earth glowing beneath the stars" />
+      <div className="star-layer" aria-hidden="true">
+        {STARS.map((star) => (
+          <span
+            key={star.id}
+            className={star.big ? "star star-big" : "star"}
+            style={{
+              left: `${star.x.toFixed(2)}%`,
+              top: `${star.y.toFixed(2)}%`,
+              width: `${star.size.toFixed(2)}px`,
+              height: `${star.size.toFixed(2)}px`,
+              "--star-tint": star.tint,
+              animationDuration: `${star.duration.toFixed(2)}s`,
+              animationDelay: `${star.delay.toFixed(2)}s`
+            }}
+          />
+        ))}
+      </div>
+      <div className="star-layer" aria-hidden="true">
+        {SHOOTING_STARS.map((shot, index) => (
+          <span
+            key={index}
+            className="shooting-star"
+            style={{
+              top: `${shot.top}%`,
+              left: `${shot.left}%`,
+              "--shoot-angle": `${shot.angle}deg`,
+              "--shoot-dist": `${shot.dist}px`,
+              animationDuration: `${shot.duration}s`,
+              animationDelay: `${shot.delay}s`
+            }}
+          />
+        ))}
+      </div>
       <div className="world-center-wrap" aria-hidden="true">
         <img className="world-logo" src="/assets/nescafe-logo.png" alt="" />
       </div>
