@@ -55,6 +55,38 @@ function calculatePathLength(width, height) {
   return length;
 }
 
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+// A random wavy route that always travels left to right, as two chained curves.
+function randomFlight(width, height) {
+  const margin = 180;
+  const round = Math.round;
+  const x0 = -margin;
+  const x1 = width + margin;
+  const span = x1 - x0;
+  const yAt = () => randomBetween(0.12, 0.88) * height;
+  const amplitude = randomBetween(0.18, 0.4) * height;
+  const midY = randomBetween(0.3, 0.7) * height;
+  // Alternate the bends up/down (random side first) so the route reads as a wave.
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const clampY = (y) => Math.min(height * 0.92, Math.max(height * 0.08, y));
+  const startY = yAt();
+  const endY = yAt();
+  const c1 = { x: x0 + span * randomBetween(0.1, 0.25), y: clampY(midY + dir * amplitude) };
+  const c2 = { x: x0 + span * randomBetween(0.3, 0.42), y: clampY(midY + dir * amplitude) };
+  const mid = { x: x0 + span * 0.5, y: clampY(midY + randomBetween(-0.1, 0.1) * height) };
+  const c3 = { x: x0 + span * randomBetween(0.58, 0.7), y: clampY(midY - dir * amplitude) };
+  const c4 = { x: x0 + span * randomBetween(0.75, 0.9), y: clampY(midY - dir * amplitude) };
+  const pt = (q) => `${round(q.x)} ${round(q.y)}`;
+  return {
+    path: `path("M ${round(x0)} ${round(startY)} C ${pt(c1)} ${pt(c2)} ${pt(mid)} C ${pt(c3)} ${pt(c4)} ${round(x1)} ${round(endY)}")`,
+    scale: randomBetween(0.8, 1.2),
+    wobble: randomBetween(-12, 12)
+  };
+}
+
 function getSafeSlotCount(width, height) {
   const pathLength = calculatePathLength(width, height);
   // Leaf visual width in CSS is clamp(230px, 6vw + 160px, 295px)
@@ -79,32 +111,62 @@ function getSafeSlotCount(width, height) {
 
 export default function NescafePage() {
   const [slots, setSlots] = useState([]);
-  const [viewport, setViewport] = useState({ width: 1920, height: 1080 });
-  const poolQueueRef = useRef([]);
-  const priorityQueueRef = useRef([]);
+  const listRef = useRef([]); // every known design, oldest to newest
+  const cursorRef = useRef(0);
+  const lastShownRef = useRef(null);
+  const priorityQueueRef = useRef([]); // fresh uploads, shown next in upload order
   const seenRef = useRef(new Set());
   const initializedRef = useRef(false);
+  const slotCountRef = useRef(0);
+
+  // Next design in chronological order (looping), never the same one twice in a row.
+  const pickNextDesign = useCallback(() => {
+    let next = priorityQueueRef.current.shift();
+    if (!next) {
+      const list = listRef.current;
+      if (!list.length) return null;
+      next = list[cursorRef.current++ % list.length];
+      if (list.length > 1 && next.id === lastShownRef.current) {
+        next = list[cursorRef.current++ % list.length];
+      }
+    }
+    lastShownRef.current = next.id;
+    return next;
+  }, []);
+
+  // Slot 0 is furthest along (leaves first) and gets the oldest design, so
+  // leaves enter the screen one after another in chronological order.
+  const buildSlots = useCallback((count) => {
+    slotCountRef.current = count;
+    return Array.from({ length: count }, (_, index) => ({
+      slotIndex: index,
+      design: pickNextDesign(),
+      flight: randomFlight(window.innerWidth, window.innerHeight),
+      delay: -((count - 1 - index) * FLIGHT_SECONDS) / count
+    }));
+  }, [pickNextDesign]);
 
   const handleSlotIteration = useCallback((slotIndex) => {
-    let nextDesign = null;
-    if (priorityQueueRef.current.length > 0) {
-      nextDesign = priorityQueueRef.current.shift();
-    } else if (poolQueueRef.current.length > 0) {
-      nextDesign = poolQueueRef.current.shift();
-    }
+    const nextDesign = pickNextDesign();
+    // Every pass takes a new random route, even when there is no new design to show.
+    const flight = randomFlight(window.innerWidth, window.innerHeight);
 
-    if (!nextDesign) return;
+    setSlots((current) =>
+      current.map((s) =>
+        s.slotIndex === slotIndex ? { ...s, design: nextDesign || s.design, flight } : s
+      )
+    );
+  }, [pickNextDesign]);
 
-    setSlots((current) => {
-      const currentSlot = current.find((s) => s.slotIndex === slotIndex);
-      if (currentSlot?.design) {
-        poolQueueRef.current.push(currentSlot.design);
-      }
-      return current.map((s) =>
-        s.slotIndex === slotIndex ? { ...s, design: nextDesign } : s
-      );
-    });
+  const addToList = useCallback((design) => {
+    if (!listRef.current.some((d) => d.id === design.id)) listRef.current.push(design);
   }, []);
+
+  const startIfNeeded = useCallback(() => {
+    if (initializedRef.current || !listRef.current.length) return;
+    initializedRef.current = true;
+    setSlots(buildSlots(getSafeSlotCount(window.innerWidth, window.innerHeight)));
+  }, [buildSlots]);
 
   const acceptDesign = useCallback(async (design) => {
     if (!design?.id || !design?.imageUrl || seenRef.current.has(design.id)) return;
@@ -115,22 +177,14 @@ export default function NescafePage() {
       return;
     }
 
-    setSlots((current) => {
-      const targetCount = getSafeSlotCount(window.innerWidth, window.innerHeight);
-      if (current.length === 0) {
-        // If no slots exist yet, initialize all slots cycling this design
-        const initialSlots = Array.from({ length: targetCount }, (_, index) => ({
-          slotIndex: index,
-          design: ready,
-          delay: -(index * FLIGHT_SECONDS) / targetCount
-        }));
-        return initialSlots;
-      }
-      // Prioritize the freshly uploaded design for the very next slot boundary
+    addToList(ready);
+    if (initializedRef.current) {
+      // Fresh upload takes the very next slot boundary.
       priorityQueueRef.current.push(ready);
-      return current;
-    });
-  }, []);
+    } else {
+      startIfNeeded();
+    }
+  }, [addToList, startIfNeeded]);
 
   const reconcile = useCallback(async () => {
     try {
@@ -140,56 +194,32 @@ export default function NescafePage() {
       if (!designs.length) return;
 
       const ready = (await Promise.all(designs.map(preloadDesign))).filter(Boolean);
-      ready.forEach((d) => seenRef.current.add(d.id));
-
-      const targetCount = getSafeSlotCount(window.innerWidth, window.innerHeight);
+      const fresh = ready.filter((d) => !seenRef.current.has(d.id));
+      ready.forEach((d) => {
+        seenRef.current.add(d.id);
+        addToList(d);
+      });
 
       if (!initializedRef.current) {
-        const initialSlots = Array.from({ length: targetCount }, (_, index) => ({
-          slotIndex: index,
-          design: ready[index % ready.length],
-          delay: -(index * FLIGHT_SECONDS) / targetCount
-        }));
-        poolQueueRef.current = ready.slice(targetCount);
-        setSlots(initialSlots);
-        initializedRef.current = true;
+        startIfNeeded();
         return;
       }
-
-      for (const d of ready) {
-        if (!seenRef.current.has(d.id)) {
-          seenRef.current.add(d.id);
-          priorityQueueRef.current.push(d);
-        }
-      }
+      priorityQueueRef.current.push(...fresh);
     } catch {
       // EventSource reconnects automatically
     }
-  }, []);
+  }, [addToList, startIfNeeded]);
 
   useEffect(() => {
     const handleResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      setViewport({ width, height });
-
-      const newTarget = getSafeSlotCount(width, height);
-      setSlots((current) => {
-        if (!current.length || current.length === newTarget) return current;
-        const designs = current.map((s) => s.design).filter(Boolean);
-        if (!designs.length) return current;
-        return Array.from({ length: newTarget }, (_, index) => ({
-          slotIndex: index,
-          design: designs[index % designs.length],
-          delay: -(index * FLIGHT_SECONDS) / newTarget
-        }));
-      });
+      if (!initializedRef.current) return;
+      const newTarget = getSafeSlotCount(window.innerWidth, window.innerHeight);
+      if (newTarget !== slotCountRef.current) setSlots(buildSlots(newTarget));
     };
 
-    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [buildSlots]);
 
   useEffect(() => {
     reconcile();
@@ -202,11 +232,9 @@ export default function NescafePage() {
     return () => source.close();
   }, [acceptDesign, reconcile]);
 
-  const flightPath = `path("M -180 ${Math.round(viewport.height * 0.52)} Q ${Math.round(viewport.width * 0.5)} ${Math.round(viewport.height * 0.04)} ${viewport.width + 180} ${Math.round(viewport.height * 0.52)}")`;
-
   return (
     <motion.main className="screen nescafe-world-screen live-world" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.65 }}>
-      <img className="landing-earth" src="/assets/earth.jpg" alt="Earth glowing beneath the stars" />
+      <img className="landing-earth" src="/assets/earth.webp" alt="Earth glowing beneath the stars" />
       <div className="world-center-wrap" aria-hidden="true">
         <img className="world-logo" src="/assets/nescafe-logo.png" alt="" />
       </div>
@@ -217,9 +245,9 @@ export default function NescafePage() {
             className="flight-design"
             style={{
               animationDelay: `${slot.delay}s`,
-              offsetPath: flightPath,
-              "--flight-scale": 0.82 + (slot.slotIndex % 4) * 0.08,
-              "--flight-wobble": `${-7 + (slot.slotIndex % 5) * 3}deg`,
+              offsetPath: slot.flight.path,
+              "--flight-scale": slot.flight.scale,
+              "--flight-wobble": `${slot.flight.wobble}deg`,
               "--design-glow": slot.design?.glowColor || "rgb(255 255 255)"
             }}
             onAnimationIteration={() => handleSlotIteration(slot.slotIndex)}

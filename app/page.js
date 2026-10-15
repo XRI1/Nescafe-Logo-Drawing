@@ -16,7 +16,7 @@ export default function Home() {
     >
       <motion.img
         className="landing-earth"
-        src="/assets/earth.jpg"
+        src="/assets/earth.webp"
         alt="Earth glowing beneath the stars"
         initial={{ scale: 1.06 }}
         animate={{ scale: 1 }}
